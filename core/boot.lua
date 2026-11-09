@@ -59,6 +59,7 @@ Usage:
       --port <n>                port (default 8080)
       --site <dir>              site folder (default: "site" next to the program)
       --trust-proxy             trust X-Forwarded-* headers from a tunnel/proxy
+      --open yes                open the site in your browser once it's running
   wordcore cgi                  handle one CGI request (used by .htaccess on shared hosting;
                                 chosen automatically when run by a web server)
   wordcore version              print version information
@@ -98,13 +99,22 @@ local cmd = arg[1] or "serve"
 
 if cmd == "serve" then
   local opts = parse_options(arg, 2)
-  return require("wc.platform.server").run({
+  local started_plain = arg[1] == nil -- double-clicked, or run with no arguments
+  local code = require("wc.platform.server").run({
     version = version,
     host = opts.host or "127.0.0.1",
     port = tonumber(opts.port or "8080"),
+    find_free_port = opts.port == nil,
+    open_browser = started_plain or opts.open == "yes",
     site_dir = opts.site,
     trust_proxy = opts.trust_proxy,
   })
+  -- A double-clicked window closes as soon as we exit; keep errors readable.
+  if code ~= 0 and started_plain and native.os == "windows" then
+    io.stderr:write("\nPress Enter to close this window.\n")
+    io.read("l")
+  end
+  return code
 elseif cmd == "cgi" then
   return require("wc.platform.cgi").run({ version = version })
 elseif cmd == "version" or cmd == "--version" or cmd == "-v" then

@@ -5,7 +5,7 @@ Make the downloadable zips from the builds in dist/.
     python tools/package.py
 
 Creates dist/packages/:
-  wordcore-<version>-host-test.zip     upload + extract on shared hosting (Linux x86_64, CGI)
+  wordcore-<version>-shared-hosting.zip  upload + extract on shared hosting (Linux x86_64, CGI)
   wordcore-<version>-<target>.zip      run on your own computer
 """
 import stat
@@ -48,14 +48,14 @@ def main():
     if not linux.exists():
         sys.exit("Build first: python runtime/build/build.py")
 
-    host_zip = OUT / f"wordcore-{version}-host-test.zip"
+    host_zip = OUT / f"wordcore-{version}-shared-hosting.zip"
     with zipfile.ZipFile(host_zip, "w") as z:
-        d = "wordcore-test/"
+        d = "wordcore/"
         add_dir(z, d)
         add(z, d + "wordcore.cgi", linux.read_bytes(), EXEC)
         add(z, d + ".htaccess", (HOST / "htaccess").read_bytes(), FILE)
         add_dir(z, d + "public")
-        add(z, d + "public/hello.txt", b"static file\n", FILE)
+        add(z, d + "public/README.txt", b"Files in this folder are served directly by your web server.\n", FILE)
         add_dir(z, d + "site")
         add(z, d + "site/.htaccess", (HOST / "site-htaccess").read_bytes(), FILE)
         add(z, d + "README.txt", (HOST / "README.txt").read_bytes(), FILE)

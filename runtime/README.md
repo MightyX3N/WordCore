@@ -6,12 +6,13 @@ The native `wordcore` program: Lua 5.5 with SQLite and a few native helpers buil
 
 ```
 runtime/
-├── VERSION          # program version (0.1.0 = Phase 0)
+├── VERSION          # program version (0.2.0 = Phase 1)
 ├── src/             # C: entry point, native module, SQLite binding
 │   ├── main.c       #   starts Lua, registers modules, runs core/boot.lua
 │   ├── wc_native.c  #   wc.native: platform, time, files, env, sockets, poll, secure random
-│   └── wc_sqlite.c  #   wc.sqlite: open / exec / prepared statements
-├── vendor/          # pinned Lua 5.5.1 and SQLite 3.53.4 sources (see vendor/README.md)
+│   ├── wc_sqlite.c  #   wc.sqlite: open / exec / prepared statements
+│   └── wc_crypto.c  #   wc.crypto: Argon2id, BLAKE2b, constant-time compare (Monocypher)
+├── vendor/          # pinned Lua 5.5.1, SQLite 3.53.4, Monocypher 4.0.3 (see vendor/README.md)
 ├── build/build.py   # cross-compiles every target with Zig
 └── host/            # files that go into the downloads (.htaccess, READMEs)
 ```

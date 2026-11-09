@@ -13,6 +13,9 @@ int luaopen_wc_native(lua_State *L);
 /* wc.sqlite: minimal SQLite binding */
 int luaopen_wc_sqlite(lua_State *L);
 
+/* wc.crypto: Argon2id, BLAKE2b, constant-time compare (Monocypher) */
+int luaopen_wc_crypto(lua_State *L);
+
 /* Embedded files (core Lua sources), generated at build time */
 typedef struct {
   const char *name;

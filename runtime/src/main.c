@@ -98,6 +98,7 @@ int main(int argc, char **argv) {
   preload(L, "wc.native", luaopen_wc_native);
   preload(L, "wc.sqlite", luaopen_wc_sqlite);
   preload(L, "wc.embedded", luaopen_wc_embedded);
+  preload(L, "wc.crypto", luaopen_wc_crypto);
 
   lua_pushstring(L, WC_VERSION);
   lua_setglobal(L, "WORDCORE_VERSION");

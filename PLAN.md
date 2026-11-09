@@ -299,15 +299,18 @@ Each phase ends with its tests passing and a click-through as a real user.
 - ✅ Build the static program for all targets (Lua 5.5.1 + SQLite 3.53.4, ~2 MB each, cross-compiled with Zig)
 - ✅ "Host check" page in server mode and CGI mode; server mode is non-blocking with keep-alive
 - ✅ Tested: unit tests, built-in server, CGI, CGI through Apache + `.htaccess` (subfolder and web root, cPanel-like config, ~3 ms/request), Windows build under Wine, ARM build under qemu
-- ✅ Downloads: `wordcore-<version>-host-test.zip` for shared hosting, one zip per platform for running locally
+- ✅ Downloads: a shared-hosting zip, one zip per platform for running locally
 - ✅ Tested on a real cPanel host (web root, HTTPS detected, all checks green, ~100 ms on first load)
 - ✅ Windows build run on a real PC (server mode, all checks green, ~1.4 ms per page)
 - ⬜ playit tunnel — becomes the playit Sharing addon (Phase 4) instead of a manual test
 
-**Phase 1 — Core platform**
-- HTTP (server + CGI), router, address/proxy handling, SQLite + migrations, sessions, CSRF, rate limiting
-- First-run setup wizard (site, owner account, mode, starter, addon repo)
-- Admin shell + admin UI kit + dashboard
+**Phase 1 — Core platform** ✅
+- ✅ Router, sessions (hashed tokens, rotation), CSRF + Origin check, rate limits, settings store, activity log
+- ✅ Passwords: Argon2id via Monocypher (checked against the reference implementation)
+- ✅ First-run setup wizard (site, owner account, where it runs, starter + addon repo, review), protected by a one-time setup code; double-clicking the program opens it with the code filled in
+- ✅ Admin shell, UI kit (incl. declarative settings screens), dashboard (status, health, activity), settings, account (profile, password, signed-in devices)
+- ✅ Strict CSP on all admin pages; fonts bundled (no outside requests)
+- ✅ Tested: unit tests, full product flow over HTTP in server mode, through Apache CGI (subfolder + web root), on Windows (Wine), ARM (qemu), and a Playwright click-through with light/dark/phone checks
 
 **Phase 2 — Content & themes**
 - Pages, menus, media library, Markdown, shortcodes, editor slot + Markdown editor

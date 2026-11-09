@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="<%= language %>">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= site_name %></title>
+<% if tagline ~= '' then %><meta name="description" content="<%= tagline %>"><% end %>
+<link rel="stylesheet" href="<%= asset('admin.css') %>">
+</head>
+<body>
+<main class="front">
+  <div>
+    <h1><%= site_name %></h1>
+    <% if tagline ~= '' then %><p><%= tagline %></p><% end %>
+    <p class="small muted">This site is being built with WordCore.</p>
+  </div>
+</main>
+</body>
+</html>

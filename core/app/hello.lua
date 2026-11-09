@@ -133,6 +133,9 @@ local function health(req, ctx)
     sqlite = sqlite.version(),
     platform = os_name .. "-" .. arch,
     mode = req.mode,
+    public_url = req.public_url,
+    base_path = req.base_path,
+    proxy_trusted = req.proxy.trusted,
   }
 end
 

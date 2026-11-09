@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title><%= title %> · WordCore</title>
+<link rel="stylesheet" href="<%= asset('admin.css') %>">
+<script src="<%= asset('admin.js') %>" defer></script>
+</head>
+<body>
+<div class="auth">
+  <aside class="auth-side">
+    <div class="brand"><span class="logo" aria-hidden="true">W</span><span class="brand-name">WordCore</span></div>
+    <div>
+      <p class="kicker"><%= side_kicker %></p>
+      <p class="lead"><%= side_lead %></p>
+    </div>
+    <% if steps then %>
+    <ol class="steps">
+      <% for i, s in ipairs(steps) do %>
+      <li class="<%= i < step and 'done' or '' %>"<% if i == step then %> aria-current="step"<% end %>>
+        <span class="step-num"><% if i < step then %>✓<% else %><%= i %><% end %></span><span><%= s %></span>
+      </li>
+      <% end %>
+    </ol>
+    <% end %>
+    <div class="foot"><%- side_foot or '' %></div>
+  </aside>
+  <main class="auth-main" id="main">
+    <div class="auth-panel<% if small then %> small<% end %>">
+      <%- flash_html %>
+      <%- body %>
+    </div>
+  </main>
+</div>
+</body>
+</html>

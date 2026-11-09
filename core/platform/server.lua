@@ -176,6 +176,20 @@ end
 
 ---------------------------------------------------------------- main loop
 
+-- Open a URL in the default browser. The URL is built by us (host, port, code
+-- from a fixed alphabet), never from outside input.
+function server.open_browser(url)
+  if not url:match("^http://[%w%.%-%[%]:]+/[%w/%?=%-]*$") then return end
+  local os_name = native.platform()
+  if os_name == "windows" then
+    os.execute('start "" "' .. url .. '"')
+  elseif os_name == "macos" then
+    os.execute("open '" .. url .. "' >/dev/null 2>&1 &")
+  else
+    os.execute("xdg-open '" .. url .. "' >/dev/null 2>&1 &")
+  end
+end
+
 function server.run(opts)
   local site, err = site_mod.open(opts.site_dir)
   if not site then
@@ -189,6 +203,12 @@ function server.run(opts)
   }
 
   local lfd, lerr = native.tcp_listen(opts.host, opts.port, 128)
+  if not lfd and opts.find_free_port then
+    for p = opts.port + 1, opts.port + 20 do
+      lfd, lerr = native.tcp_listen(opts.host, p, 128)
+      if lfd then opts.port = p break end
+    end
+  end
   if not lfd then
     io.stderr:write("wordcore: ", lerr, "\n")
     if lerr:find("in use") or lerr:find("10048") then
@@ -203,8 +223,15 @@ function server.run(opts)
   io.stdout:write(("WordCore %s\n"):format(opts.version))
   io.stdout:write(("Site folder: %s\n"):format(site.dir))
   io.stdout:write(("Running at http://%s:%d/%s\n"):format(shown_host, opts.port, ctx.trust_proxy and "  (trusting proxy headers)" or ""))
+  local open_url = ("http://%s:%d/"):format(shown_host, opts.port)
+  if not require("wc.people.users").has_owner(site.db) then
+    local code = require("wc.setup.code").get(site)
+    open_url = ("http://%s:%d/setup?code=%s"):format(shown_host, opts.port, code)
+    io.stdout:write("\nFirst-time setup: ", open_url, "\n(setup code ", code, ")\n\n")
+  end
   io.stdout:write("Press Ctrl+C to stop.\n")
   io.stdout:flush()
+  if opts.open_browser then server.open_browser(open_url) end
 
   local conns = {}
 

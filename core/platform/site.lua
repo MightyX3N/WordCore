@@ -42,7 +42,26 @@ function site.open(explicit_dir)
   local conn, derr = db.open(db_path)
   if not conn then return nil, "cannot open " .. db_path .. ": " .. tostring(derr) end
 
-  return setmetatable({ dir = dir, config = config, db = conn, db_path = db_path }, { __index = site })
+  local self = setmetatable({ dir = dir, config = config, db = conn, db_path = db_path }, { __index = site })
+  local iok, ierr = pcall(site.init_core, self)
+  if not iok then conn:close() return nil, "cannot prepare the database: " .. tostring(ierr) end
+  return self
+end
+
+-- Create/upgrade the core tables and make sure the site has an id.
+function site:init_core()
+  local settings = require("wc.platform.settings")
+  require("wc.people.users").migrate(self.db)
+  settings.migrate(self.db)
+  require("wc.platform.session").migrate(self.db)
+  require("wc.platform.log").migrate(self.db)
+  require("wc.platform.ratelimit").migrate(self.db)
+  local id = settings.get(self.db, "site.id")
+  if not id then
+    id = require("wc.lib.crypto").hex(native.random_bytes(8))
+    settings.set(self.db, "site.id", id)
+  end
+  self.id = id
 end
 
 function site:close()
