@@ -8,7 +8,7 @@ Admin design previews, drafted on a shared design canvas (private until shared f
 2. **Dashboard** — run mode / public address / preview lock strip, site numbers, recent edits, site health, updates, addon dashboard cards
 3. **Page editor** — core Markdown editor with split preview, shortcode inserter, missing-shortcode warning, page settings, SEO addon panel
 4. **Addons** — installed list, updates, install screen with permissions, dependencies and shortcodes
-5. **Publish & share** — preview lock invites, public address + HTTPS mode, connected sites (paired live site first), publish / export package, backup-before-overwrite
+5. **Publish & share** — Share with playit (addon: agent installed, account linked, tunnel created, public address), preview lock invites, public address + HTTPS mode, connected sites (paired live site first), publish / export package, backup-before-overwrite
 6. **Connect a live site** — pairing (recommended: upload + extract once, pairing code, no hosting password), GitHub (Pages or source, static check per addon), and advanced: cPanel token, VPS (SSH key + fingerprint), FTP/SFTP
 
 ## Look

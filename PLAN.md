@@ -135,7 +135,7 @@ Saved host logins are **not** in this folder. They live encrypted in the user's 
 
 ### Publish & share (core)
 - **Preview lock**: whole site behind invites / password, blocks search engines
-- **Public address** detection + HTTPS mode (by tunnel/proxy, built-in Let's Encrypt, off)
+- **Public address** detection + HTTPS mode (by tunnel/proxy, built-in Let's Encrypt, off). Built-in HTTPS (automatic Let's Encrypt certificates) is needed for HTTPS tunnels that pass encrypted traffic straight through (playit premium does this), so no Caddy/nginx is needed in front.
 - **Export package** per target: cPanel (Linux program + `.htaccess`), VPS (program + service file), backup-only
 - **Pairing — the main way to publish.** Most people never know their cPanel login (most hosts log you in to cPanel from their customer area), so publishing must not depend on it.
   1. *First install, once:* download the host package (zip), upload it in cPanel File Manager (or any file manager / FTP) and extract it. Visit the domain; the live site runs a short setup (owner account).
@@ -171,7 +171,7 @@ Every addon declares how it behaves in a static build:
 ## 7. The addon sandbox
 
 - Each addon runs in its own Lua environment. No `io`, `os`, `require`, `load` of bytecode, `debug`, `string.dump`, raw sockets.
-- It receives a `wc` API object scoped to it: its own tables/KV namespace, its own folder, routes under paths it declared, hooks, admin UI kit, shortcodes, mailer (if permitted), HTTP client (if permitted, to declared hosts only).
+- It receives a `wc` API object scoped to it: its own tables/KV namespace, its own folder, routes under paths it declared, hooks, admin UI kit, shortcodes, mailer (if permitted), HTTP client (if permitted, to declared hosts only), and — only with the `process` permission, which the owner approves separately and which is shown as high-risk — the ability to download a named, checksummed helper program and start/stop it (e.g. the playit agent). Never a shell.
 - CPU and memory limits per request (instruction hook + allocator limit) so a broken addon can't take the site down.
 - Permissions are declared in the manifest and approved at install; new permissions on update ask again.
 - Manifests are data (JSON), never executed.
@@ -207,7 +207,26 @@ Draft manifest:
 | Block Editor | visual blocks; saves Markdown + shortcodes | n/a (admin only) |
 | Forum | boards, threads, replies, profiles, uses core accounts | none |
 | Themes | Default (new), ports of Ink & Page and Slate as single packages | — |
+| playit Sharing | one-click sharing from your PC through playit.gg (see below) | n/a (local only) |
 | *Later:* GitHub Actions | writes a workflow that runs `wordcore build --static` on GitHub (scheduled posts, publish without your PC) | — |
+
+
+### playit Sharing addon
+
+Share a site running on your PC through [playit.gg](https://playit.gg) without installing or configuring anything by hand. Publish & share → **Share with playit**:
+
+1. **Get the agent** — WordCore downloads the official playit agent for this OS from playit's GitHub releases and checks its checksum. (The agent is open source under a BSD-2 licence; its notice is shown in the addon and kept with the download.)
+2. **Link your account** — uses the agent's own claim flow (`claim generate` → claim URL → `claim exchange`): WordCore opens playit's approval page, you click approve, the agent gets its secret key. No password is ever typed into WordCore; the key is stored encrypted outside the site folder.
+3. **Create the tunnel** — automatically, through the same API the agent uses:
+   - *Free plan:* a TCP tunnel to the local server → an `http://name.joinmc.link:12345`-style address.
+   - *Premium:* an HTTPS tunnel on your domain (a `.playit.plus` one or your own via CNAME) → WordCore's built-in HTTPS gets the certificate, so there's no Caddy step.
+   WordCore detects which plan you have and says plainly what you'll get.
+4. **Run it** — the agent starts and stops with the site; the dashboard status strip shows the public address; trust-proxy is turned on only when the tunnel type needs it; the preview lock is offered right there.
+
+Risks and fallbacks:
+- playit's tunnel-creation API isn't a documented public API (it's what their agent uses), so it can change. Linking uses their official CLI; if creating the tunnel fails, the addon shows the exact settings to enter on playit.gg instead.
+- On the free TCP tunnel all visitors appear as `127.0.0.1` (the agent connects locally) — fine for previews, noted in the UI.
+- Needs the core's `process` permission (above).
 
 ---
 
@@ -281,8 +300,9 @@ Each phase ends with its tests passing and a click-through as a real user.
 - ✅ "Host check" page in server mode and CGI mode; server mode is non-blocking with keep-alive
 - ✅ Tested: unit tests, built-in server, CGI, CGI through Apache + `.htaccess` (subfolder and web root, cPanel-like config, ~3 ms/request), Windows build under Wine, ARM build under qemu
 - ✅ Downloads: `wordcore-<version>-host-test.zip` for shared hosting, one zip per platform for running locally
-- ⬜ Test CGI on a real cPanel host (CloudLinux, caged SSH, non-standard SSH/SFTP port). Use a test subdomain/subfolder so live sites aren't touched. Check: program runs via `.htaccess`, time per request, CloudLinux limits, cPanel API token upload, SFTP upload.
-- ⬜ Test through a playit tunnel with a domain (`wordcore serve --trust-proxy`)
+- ✅ Tested on a real cPanel host (web root, HTTPS detected, all checks green, ~100 ms on first load)
+- ✅ Windows build run on a real PC (server mode, all checks green, ~1.4 ms per page)
+- ⬜ playit tunnel — becomes the playit Sharing addon (Phase 4) instead of a manual test
 
 **Phase 1 — Core platform**
 - HTTP (server + CGI), router, address/proxy handling, SQLite + migrations, sessions, CSRF, rate limiting
@@ -304,6 +324,9 @@ Each phase ends with its tests passing and a click-through as a real user.
 - **Pairing** (first install by upload + extract, pair code, signed publish/pull, backup before apply)
 - Advanced connections: cPanel token, SSH, FTP/SFTP
 - Small-host options (size estimate, optimised media, slim package)
+- Built-in HTTPS for server mode (automatic Let's Encrypt) — moved up from Phase 7
+- Core `process` permission for addons (download a checksummed helper program, start/stop it)
+- **playit Sharing** addon: agent download, claim flow, automatic tunnel (free TCP / premium HTTPS), status in dashboard
 
 **Phase 5 — Static & GitHub**
 - `wordcore build --static`, static modes per addon, browser search index
@@ -315,7 +338,6 @@ Each phase ends with its tests passing and a click-through as a real user.
 - Theme ports: Ink & Page, Slate
 
 **Phase 7 — Extras**
-- Built-in Let's Encrypt for server mode
 - Core self-update
 - GitHub Actions addon
 
