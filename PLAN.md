@@ -233,7 +233,7 @@ GitHub Pages serves one site per repo, so the website and the addon repo share i
 | `https://wordcore.space/repo/` | The official addon & theme repository (`index.json` + zips) — the default repo URL in setup |
 
 - Official addon **source** lives on `main` in `addons/` and `themes/`, next to the core, so changes to the API and the addons that use it land together and are tested together.
-- A release script builds the website, zips each addon and theme, computes checksums, signs (if we do signing), and writes everything into an orphan branch **`pages`** that contains only built output (website at the root, repository under `/repo/`, plus `CNAME` = `wordcore.space`). GitHub Pages serves that branch.
+- A release script builds the website, zips each addon and theme, computes checksums, signs official packages, and writes everything into an orphan branch **`pages`** that contains only built output (website at the root, repository under `/repo/`, plus `CNAME` = `wordcore.space`). GitHub Pages serves that branch.
 - Community addons stay in their authors' repos. They get listed by a PR to `registry/` on `main`; the build pulls their release zip, checks it, and includes it in the index.
 - Benefits: `main` history stays free of zip files, the `pages` branch is always reproducible from source, and there's one place to contribute.
 - `repo.wordcore.space` isn't needed anymore.
@@ -324,9 +324,19 @@ Each phase ends with its tests passing and a click-through as a real user.
 
 Decided: **GPLv3** for everything that comes from WordCore (program, core, official addons and themes, tools), plus the **[WordCore Addon and Theme Exception](LICENSE-EXCEPTION.md)**: independent addons and themes that only use the WordCore interfaces can use any licence, including closed source. Third-party libraries in the program keep their own licences. Sites and content made with WordCore aren't covered at all.
 
-## 13. Open questions
+## 13. Package trust
 
-1. Sign official addons (Ed25519) or checksums only?
+Decided: **checksums for everything, signatures for official packages.**
+
+- Every addon and theme in any repo index has a **SHA-256 checksum**. WordCore checks it after download and refuses a mismatch.
+- **Official** packages (and core updates) are also **signed with Ed25519**. The public key is built into the `wordcore` program; the private key never goes in the repo (kept offline, or as a GitHub Actions secret for the release script) and is backed up.
+- Only packages with a valid official signature are shown as **Official**. Everything else is shown as **Community** (official repo) or **Unofficial** (other repos).
+- A hacked repo or website can't push a fake "official" update: without the private key the signature fails and sites refuse it.
+- Key rotation: the program can carry the next public key ahead of time, so a lost or leaked key can be replaced with a core update.
+
+## Open questions
+
+None right now.
 
 ---
 
