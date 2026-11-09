@@ -320,14 +320,17 @@ Each phase ends with its tests passing and a click-through as a real user.
 
 ---
 
-## 12. Open questions
+## 12. Licence
+
+Decided: **GPLv3** for everything that comes from WordCore (program, core, official addons and themes, tools), plus the **[WordCore Addon and Theme Exception](LICENSE-EXCEPTION.md)**: independent addons and themes that only use the WordCore interfaces can use any licence, including closed source. Third-party libraries in the program keep their own licences. Sites and content made with WordCore aren't covered at all.
+
+## 13. Open questions
 
 1. A cPanel host to test CGI against?
 2. Sign official addons (Ed25519) or checksums only?
-3. Licence: GPLv3 with an addon/theme exception, plain GPLv3, or MIT?
 
 ---
 
-## 13. Design previews
+## 14. Design previews
 
 Admin screens drafted so far (setup wizard, dashboard, page editor, addons + permissions, publish & share, add a host). See `design/README.md`.

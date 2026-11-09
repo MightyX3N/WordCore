@@ -25,3 +25,9 @@ A small, fast CMS written in Lua. One program that runs on your PC, on cPanel ho
 | [`docs/`](docs/) | Developer and user documentation |
 | [`registry/`](registry/) | Community addon listings for the official repo |
 | [`design/`](design/) | Admin design previews and notes |
+
+## Licence
+
+WordCore is licensed under the [GNU GPL v3](LICENSE), with the [WordCore Addon and Theme Exception](LICENSE-EXCEPTION.md): addons and themes you make that only use WordCore's addon/theme interfaces can use any licence you like, including closed source. Everything that comes from WordCore stays GPLv3. Third-party libraries keep their own licences, and the sites and content you make are entirely yours.
+
+By contributing to this repository you agree that your contribution is licensed under the same terms (GPLv3 + the exception).
