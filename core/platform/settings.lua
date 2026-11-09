@@ -14,6 +14,10 @@ settings.DEFAULTS = {
   ["site.starter"] = "simple",
   ["proxy.trust"] = false,
   ["repo.urls"] = { "https://wordcore.space/repo/" },
+  ["content.home_page"] = 0,
+  ["content.editor"] = "markdown",
+  ["members.registration"] = false,
+  ["theme.active"] = "quiet",
 }
 
 function settings.migrate(db)

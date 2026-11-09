@@ -16,6 +16,9 @@ int luaopen_wc_sqlite(lua_State *L);
 /* wc.crypto: Argon2id, BLAKE2b, constant-time compare (Monocypher) */
 int luaopen_wc_crypto(lua_State *L);
 
+/* wc.markdown: CommonMark + GFM extensions (cmark-gfm) */
+int luaopen_wc_markdown(lua_State *L);
+
 /* Embedded files (core Lua sources), generated at build time */
 typedef struct {
   const char *name;

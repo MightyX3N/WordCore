@@ -23,3 +23,8 @@ First start warnings (the program isn't code-signed yet):
    Windows:  "Windows protected your PC" > More info > Run anyway
    macOS:    right-click wordcore > Open > Open, or run
              xattr -d com.apple.quarantine wordcore
+
+Updating to a new version:
+   Stop WordCore, replace the program file (wordcore.exe / wordcore) with
+   the new one and start it again. Keep the "site" folder - the new version
+   updates the database by itself on first start.

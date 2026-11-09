@@ -9,6 +9,7 @@ local crypto = require("wc.lib.crypto")
 local html = require("wc.lib.html")
 local ui = require("wc.admin.ui")
 local page = require("wc.admin.page")
+local twofactor = require("wc.people.twofactor")
 
 local esc = html.escape
 local account = {}
@@ -59,6 +60,19 @@ local function render(req, errors, values, status)
   end
   local devices = ui.card("Signed-in devices", sessions_html, { id = "devices-h" })
 
+  local tf
+  if twofactor.enabled(u) then
+    local left = twofactor.remaining_codes(req.db, u.id)
+    tf = ('<div class="card-body"><p><span class="badge ok">On</span> Signing in needs a code from your authenticator app. %d recovery code%s left.</p>'):format(left, left == 1 and "" or "s")
+      .. ('<form method="post" action="%s" class="form">%s%s<div class="actions"><button type="submit" class="btn" name="do" value="codes">New recovery codes</button><button type="submit" class="btn btn-danger" name="do" value="off">Turn off 2-step login</button></div></form></div>'):format(
+        esc(req:url_for("/admin/account/2fa/manage")), ui.csrf(req.session.csrf),
+        ui.field({ name = "password", label = "Your password (to confirm)", type = "password", autocomplete = "current-password", error = errors.tf_password }))
+  else
+    tf = ('<div class="card-body"><p class="muted">Protect your account with a code from an authenticator app on your phone, as well as your password.</p><div class="actions"><a class="btn btn-primary" href="%s">Turn on 2-step login</a></div></div>'):format(
+      esc(req:url_for("/admin/account/2fa")))
+  end
+  devices = ui.card("2-step login", tf, { id = "tf-h" }) .. devices
+
   local res = page.admin(req, {
     title = "Your account", subtitle = users.role_label(u.role) .. " · last signed in " .. ui.ago(u.last_login_at),
     active = "account", body = profile .. password .. devices, narrow = true,
@@ -68,6 +82,48 @@ local function render(req, errors, values, status)
 end
 
 local function get(req) return render(req) end
+
+local TF_CLASSES = { form = "form", field = "field", input = "input code-input", error = "error-text", button = "btn btn-primary", hint = "muted small", codes = "codes" }
+
+local function get_2fa(req)
+  if twofactor.enabled(req.user) then return http.new_response():redirect(req:url_for("/admin/account")) end
+  local secret = twofactor.setup_secret(req, session)
+  return page.admin(req, { title = "Turn on 2-step login", active = "account", narrow = true,
+    body = '<section class="card"><div class="card-body">' .. twofactor.setup_view(req, secret, req:url_for("/admin/account/2fa"), nil, TF_CLASSES) .. "</div></section>" })
+end
+
+local function post_2fa(req)
+  local codes, err = twofactor.confirm(req, req.db, session, req:form().code)
+  if not codes then
+    local secret = twofactor.setup_secret(req, session)
+    local res = page.admin(req, { title = "Turn on 2-step login", active = "account", narrow = true,
+      body = '<section class="card"><div class="card-body">' .. twofactor.setup_view(req, secret, req:url_for("/admin/account/2fa"), err, TF_CLASSES) .. "</div></section>" })
+    res.status = 422
+    return res
+  end
+  log.add(req.db, req, "account.2fa_on", nil)
+  return page.admin(req, { title = "2-step login is on", active = "account", narrow = true,
+    body = '<section class="card"><div class="card-body">' .. twofactor.codes_view(codes, TF_CLASSES)
+      .. ('<div class="actions"><a class="btn btn-primary" href="%s">I\'ve saved them</a></div>'):format(esc(req:url_for("/admin/account"))) .. "</div></section>" })
+end
+
+local function post_2fa_manage(req)
+  local f = req:form()
+  if not crypto.verify_password(f.password or "", req.user.password_hash) then
+    return render(req, { tf_password = "That isn't your password." }, nil, 422)
+  end
+  if f["do"] == "off" then
+    twofactor.disable(req.db, req.user.id)
+    log.add(req.db, req, "account.2fa_off", nil)
+    session.flash(req, "ok", "2-step login is off.")
+    return http.new_response():redirect(req:url_for("/admin/account"))
+  end
+  local codes = twofactor.new_recovery_codes(req.db, req.user.id)
+  log.add(req.db, req, "account.2fa_codes", nil)
+  return page.admin(req, { title = "New recovery codes", active = "account", narrow = true,
+    body = '<section class="card"><div class="card-body">' .. twofactor.codes_view(codes, TF_CLASSES)
+      .. ('<div class="actions"><a class="btn btn-primary" href="%s">I\'ve saved them</a></div>'):format(esc(req:url_for("/admin/account"))) .. "</div></section>" })
+end
 
 local function post_profile(req)
   local f = req:form()
@@ -114,6 +170,9 @@ function account.register(r)
   r:post("/admin/account/profile", post_profile, { auth = "admin.access" })
   r:post("/admin/account/password", post_password, { auth = "admin.access" })
   r:post("/admin/account/sessions", post_sessions, { auth = "admin.access" })
+  r:get("/admin/account/2fa", get_2fa, { auth = "admin.access" })
+  r:post("/admin/account/2fa", post_2fa, { auth = "admin.access" })
+  r:post("/admin/account/2fa/manage", post_2fa_manage, { auth = "admin.access" })
 end
 
 return account

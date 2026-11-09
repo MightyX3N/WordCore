@@ -23,6 +23,10 @@ WordCore for shared hosting (cPanel)
 6. Follow the five setup steps. The setup code file is deleted
    automatically when you're done.
 
+Updating to a new version: upload only the new wordcore.cgi from the zip
+over the old one (keep the site folder) and check it is still 755. The
+database is updated automatically on the next visit.
+
 If you see an error instead:
    - "500 Internal Server Error": in cPanel open Metrics > Errors and copy
      the newest lines that mention wordcore.

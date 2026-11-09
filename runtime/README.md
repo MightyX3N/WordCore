@@ -6,14 +6,16 @@ The native `wordcore` program: Lua 5.5 with SQLite and a few native helpers buil
 
 ```
 runtime/
-├── VERSION          # program version (0.2.0 = Phase 1)
+├── VERSION          # program version (0.3.0 = Phase 2)
 ├── src/             # C: entry point, native module, SQLite binding
 │   ├── main.c       #   starts Lua, registers modules, runs core/boot.lua
 │   ├── wc_native.c  #   wc.native: platform, time, files, env, sockets, poll, secure random
 │   ├── wc_sqlite.c  #   wc.sqlite: open / exec / prepared statements
-│   └── wc_crypto.c  #   wc.crypto: Argon2id, BLAKE2b, constant-time compare (Monocypher)
-├── vendor/          # pinned Lua 5.5.1, SQLite 3.53.4, Monocypher 4.0.3 (see vendor/README.md)
+│   ├── wc_crypto.c  #   wc.crypto: Argon2id, BLAKE2b, constant-time compare (Monocypher)
+│   └── wc_markdown.c#   wc.markdown: Markdown → safe HTML (cmark-gfm)
+├── vendor/          # pinned Lua 5.5.1, SQLite 3.53.4, Monocypher 4.0.3, cmark-gfm (see vendor/README.md)
 ├── build/build.py   # cross-compiles every target with Zig
+├── build/wcluac.c   # build-machine helper: precompiles the core to Lua bytecode
 └── host/            # files that go into the downloads (.htaccess, READMEs)
 ```
 
@@ -36,7 +38,7 @@ python tools/package.py                    # zips → dist/packages/
 | `macos-arm64` | `wordcore` | ad-hoc signed (required on Apple Silicon) |
 | `macos-x64` | `wordcore` | |
 
-Each build is about 2 MB. The first build compiles SQLite once per target (~1 min); later builds take seconds.
+Each build is about 3 MB. The core's Lua files are embedded as precompiled bytecode (made by a small helper built for the build machine), which makes a CGI request about 3× faster than compiling the source each time; every target uses the same 64-bit Lua configuration, and Lua checks the format when loading. The first build compiles SQLite once per target (~1 min); later builds take seconds.
 
 ## Commands
 

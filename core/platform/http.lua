@@ -18,7 +18,7 @@ http.status_text = {
 }
 
 http.MAX_HEADER_BYTES = 32 * 1024
-http.MAX_BODY_BYTES = 16 * 1024 * 1024
+http.MAX_BODY_BYTES = 64 * 1024 * 1024
 
 ---------------------------------------------------------------- decoding
 
@@ -95,8 +95,14 @@ end
 function Request:form()
   if self._form then return self._form end
   local ct = self:header("content-type") or ""
+  self.files = {}
   if ct:lower():find("application/x-www-form-urlencoded", 1, true) then
     self._form = http.parse_query(self.body)
+  elseif ct:lower():find("multipart/form-data", 1, true) then
+    local fields, files = require("wc.lib.multipart").parse(self.body, ct, 50)
+    self._form = fields or {}
+    self.files = files or {}
+    self.form_error = not fields and files or nil
   else
     self._form = {}
   end

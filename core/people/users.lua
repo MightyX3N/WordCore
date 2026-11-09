@@ -8,9 +8,10 @@ local users = {}
 -- Roles from most to least powerful. The owner can never be locked out by roles.
 users.ROLES = {
   { id = "owner",  label = "Owner",  caps = { "*" } },
-  { id = "admin",  label = "Administrator", caps = { "admin.access", "settings.manage", "users.manage", "content.edit_any", "content.publish" } },
-  { id = "editor", label = "Editor", caps = { "admin.access", "content.edit_any", "content.publish" } },
-  { id = "author", label = "Author", caps = { "admin.access", "content.edit_own" } },
+  { id = "admin",  label = "Administrator", caps = { "admin.access", "settings.manage", "users.manage", "themes.manage",
+                                                   "menus.manage", "media.upload", "content.edit_any", "content.edit_own", "content.publish" } },
+  { id = "editor", label = "Editor", caps = { "admin.access", "menus.manage", "media.upload", "content.edit_any", "content.edit_own", "content.publish" } },
+  { id = "author", label = "Author", caps = { "admin.access", "media.upload", "content.edit_own" } },
   { id = "member", label = "Member", caps = {} },
 }
 local ROLE_BY_ID = {}
@@ -43,6 +44,15 @@ function users.migrate(db)
         created_at INTEGER NOT NULL DEFAULT (unixepoch()),
         last_login_at INTEGER,
         password_changed_at INTEGER NOT NULL DEFAULT (unixepoch()))]],
+    -- 2-step login
+    "ALTER TABLE wc_users ADD COLUMN totp_secret TEXT",
+    "ALTER TABLE wc_users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE wc_users ADD COLUMN totp_last_step INTEGER",
+    [[CREATE TABLE wc_recovery_codes (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES wc_users(id) ON DELETE CASCADE,
+        code_hash TEXT NOT NULL,
+        used_at INTEGER)]],
   })
 end
 

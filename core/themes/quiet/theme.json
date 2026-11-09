@@ -1,0 +1,21 @@
+{
+  "id": "quiet",
+  "name": "Quiet",
+  "version": "1.0.0",
+  "author": "WordCore",
+  "description": "A calm, readable theme. Light and dark, works on every screen size.",
+  "layouts": [
+    { "id": "default", "label": "Default" },
+    { "id": "wide", "label": "Wide" },
+    { "id": "home", "label": "Home (big title)" }
+  ],
+  "settings": [
+    { "key": "accent", "label": "Accent colour", "type": "color", "default": "#2456D6" },
+    { "key": "font", "label": "Text font", "type": "select", "default": "sans",
+      "options": [["sans", "Inter (clean)"], ["serif", "Serif (bookish)"], ["system", "System font"]] },
+    { "key": "width", "label": "Text width", "type": "select", "default": "medium",
+      "options": [["narrow", "Narrow"], ["medium", "Medium"], ["wide", "Wide"]] },
+    { "key": "show_tagline", "label": "Show the tagline in the footer", "type": "checkbox", "default": true },
+    { "key": "show_credit", "label": "Show “Made with WordCore”", "type": "checkbox", "default": true }
+  ]
+}

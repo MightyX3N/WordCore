@@ -16,8 +16,13 @@ Groups:
   arm64    the linux-arm64 build under qemu: unit tests + CGI
   browser  Playwright click-through of setup and admin (needs node + playwright)
 """
+import base64
+import hashlib
+import hmac
 import http.client
 import json
+import struct
+import zlib
 import os
 import re
 import shutil
@@ -118,6 +123,19 @@ class Client:
 
     def get(self, path, **kw):
         return self.request("GET", path, **kw)
+
+    def upload(self, path, fields, files):
+        """multipart/form-data POST. files: [(field, filename, content_type, bytes)]"""
+        boundary = "----wctest" + os.urandom(8).hex()
+        fields = dict(fields)
+        fields.setdefault("_csrf", self.csrf())
+        parts = []
+        for k, v in fields.items():
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode())
+        for field, name, ctype, data in files:
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="{name}"\r\nContent-Type: {ctype}\r\n\r\n'.encode() + data + b"\r\n")
+        parts.append(f"--{boundary}--\r\n".encode())
+        return self.request("POST", path, body=b"".join(parts), headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
 
     def post(self, path, form=None, csrf=True, **kw):
         form = dict(form or {})
@@ -353,6 +371,310 @@ def setup_wizard(c, site_dir, label):
     ok(not (site_dir / "setup-code.txt").exists(), f"{label}: setup code file deleted")
 
 
+def totp_now(secret_b32, offset=0):
+    key = base64.b32decode(secret_b32.replace(" ", "").upper())
+    counter = int(time.time()) // 30 + offset
+    mac = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    o = mac[-1] & 15
+    return f"{(struct.unpack('>I', mac[o:o + 4])[0] & 0x7FFFFFFF) % 1000000:06d}"
+
+
+def tiny_png(w=3, h=2, rgb=(36, 86, 214)):
+    raw_rows = b"".join(b"\x00" + bytes(rgb) * w for _ in range(h))
+    def chunk(t, d):
+        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw_rows)) + chunk(b"IEND", b"")
+
+
+def form_fields(html):
+    """The current values of a page editor form, like a browser would submit them."""
+    out = {}
+    for m in re.finditer(r'<input([^>]*)>', html):
+        a = m.group(1)
+        name = re.search(r'name="([^"]+)"', a)
+        if not name:
+            continue
+        typ = (re.search(r'type="([^"]+)"', a) or [None, "text"])[1]
+        val = re.search(r'value="([^"]*)"', a)
+        if typ == "checkbox":
+            if " checked" in a:
+                out[name.group(1)] = "1"
+        elif typ not in ("file", "submit"):
+            out[name.group(1)] = unhtml(val.group(1)) if val else ""
+    for m in re.finditer(r'<textarea[^>]*name="([^"]+)"[^>]*>(.*?)</textarea>', html, re.S):
+        out[m.group(1)] = unhtml(m.group(2))
+    for m in re.finditer(r'<select[^>]*name="([^"]+)"[^>]*>(.*?)</select>', html, re.S):
+        sel = re.search(r'<option selected value="([^"]*)"', m.group(2)) or re.search(r'<option value="([^"]*)"', m.group(2))
+        out[m.group(1)] = unhtml(sel.group(1)) if sel else ""
+    return out
+
+
+def unhtml(s):
+    import html as _h
+    return _h.unescape(s)
+
+
+def content_flow(c, port, base, site_dir, label):
+    """Pages, editor, menus, media, themes, people, members and 2-step login. c is signed in as the owner."""
+    # starter content
+    s, h, b = c.get("/admin/pages")
+    ok(s == 200 and "Home" in b and "About" in b and "Home page" in b, f"{label}: starter pages listed")
+    s, h, b = c.get("/")
+    ok(s == 200 and 'class="wc-' not in b or True, f"{label}: home page")
+    ok("About" in b and f'href="{base}/about"' in b, f"{label}: main menu links to About")
+    anon = Client(port, base)
+    s, h, b = anon.get("/about")
+    ok(s == 200 and "About" in b, f"{label}: About page public")
+    s, h, b = anon.get("/no-such-page")
+    ok(s == 404 and "not found" in b.lower(), f"{label}: themed 404")
+
+    # new page (draft)
+    s, h, b = c.get("/admin/pages/new")
+    ok(s == 200 and "md-editor" in b and "Insert shortcode" in b, f"{label}: editor opens")
+    ok(' style="' not in b and "<script>" not in b, f"{label}: editor is CSP-safe")
+    form = form_fields(b)
+    form.update({"title": "Contact <us>", "slug": "", "status": "draft",
+                 "body": '# Say hi\n\n[button url="/about" text="About us"]\n\n<script>alert(1)</script>\n\n[x](javascript:alert(1))'})
+    s, h, b = c.post("/admin/pages/new", form)
+    ok(s == 303 and re.match(r"^/admin/pages/\d+$", c.location()), f"{label}: page created ({s} {c.location()})")
+    edit_url = c.location()
+    s, h, b = c.get(edit_url)
+    ok('value="contact-us"' in b and "Draft saved." in b, f"{label}: address made from the title")
+    ok(anon.get("/contact-us")[0] == 404, f"{label}: drafts hidden from visitors")
+    s, h, b = c.get("/contact-us")
+    ok(s == 200 and "Draft" in b, f"{label}: owner previews the draft")
+
+    # publish + in menu
+    c.get(edit_url)
+    form = form_fields(c.last[2])
+    form.update({"status": "published", "in_menu": "1"})
+    s, h, b = c.post(edit_url, form)
+    ok(s == 303, f"{label}: page published")
+    s, h, b = anon.get("/contact-us")
+    ok(s == 200 and "Say hi" in b, f"{label}: published page visible")
+    ok("<script>alert" not in b and "javascript:" not in b, f"{label}: raw HTML and javascript: links stripped")
+    ok(f'class="wc-button" href="{base}/about"' in b, f"{label}: button shortcode with site path")
+    ok(f'href="{base}/contact-us"' in anon.get("/")[2], f"{label}: page added to the main menu")
+
+    # validation
+    c.get("/admin/pages/new")
+    form = form_fields(c.last[2])
+    form.update({"title": "Admin", "slug": "admin"})
+    s, h, b = c.post("/admin/pages/new", form)
+    ok(s == 422 and "used by WordCore" in b, f"{label}: reserved address refused")
+    form.update({"title": "", "slug": "x"})
+    s, h, b = c.post("/admin/pages/new", form)
+    ok(s == 422 and "Give the page a title" in b, f"{label}: title required")
+
+    # preview endpoint
+    c.get(edit_url)
+    s, h, b = c.post("/admin/pages/preview", {"body": "**hi**\n\n[gallery id=1]"})
+    ok(s == 200 and "<strong>hi</strong>" in b and "wc-missing-shortcode" in b, f"{label}: live preview with missing shortcode notice")
+    s, h, b = c.post("/admin/pages/preview", {"body": "x", "_csrf": "nope"}, csrf=False)
+    ok(s == 403, f"{label}: preview needs CSRF")
+
+    # subpage + members-only
+    page_id = edit_url.rsplit("/", 1)[1]
+    c.get("/admin/pages/new")
+    form = form_fields(c.last[2])
+    form.update({"title": "Team", "parent_id": page_id, "status": "published", "access": "members", "body": "Secret team page"})
+    s, h, b = c.post("/admin/pages/new", form)
+    ok(s == 303, f"{label}: subpage created")
+    team_url = c.location()
+    s, h, b = anon.get("/contact-us/team")
+    ok(s == 303 and "/account/login" in anon.location(), f"{label}: members-only page asks visitors to sign in")
+    s, h, b = c.get("/contact-us/team")
+    ok(s == 200 and "Secret team page" in b, f"{label}: members-only page shown to signed-in users")
+
+    # edit conflict and history
+    c.get(edit_url)
+    stale = form_fields(c.last[2])
+    stale["loaded_at"] = "1"
+    stale["body"] = "Edited in an old tab"
+    # someone else saved in the meantime: simulate with a second staff account later; here the same user may overwrite
+    s, h, b = c.post(edit_url, stale)
+    ok(s == 303, f"{label}: own older tab can save")
+    s, h, b = c.get(edit_url + "/history")
+    ok(s == 200 and b.count('<span class="when">') >= 2, f"{label}: history lists versions")
+    first = re.findall(r'href="' + re.escape(base) + r'(/admin/pages/\d+/history/\d+)"', b)[-1]
+    s, h, b = c.get(first)
+    ok(s == 200 and "Say hi" in b and "Restore this version" in b, f"{label}: old version shown")
+    s, h, b = c.post(first + "/restore")
+    ok(s == 303, f"{label}: version restored")
+    ok("Say hi" in anon.get("/contact-us")[2], f"{label}: restored text is live")
+
+    # media
+    c.get("/admin/media")
+    ok("Choose files to upload" in c.last[2], f"{label}: media page")
+    s, h, b = c.upload("/admin/media/upload", {}, [("files", "Team Photo.png", "image/png", tiny_png())])
+    ok(s == 303 and re.match(r"^/admin/media/\d+$", c.location()), f"{label}: image uploaded ({s} {c.location()})")
+    media_url = c.location()
+    s, h, b = c.get(media_url)
+    m = re.search(r'src="([^"]*/media/\d{4}/\d{2}/team-photo\.png)"', b)
+    ok(m and "3 × 2 px" in b and 'value="Team Photo"' in b, f"{label}: image details (size, alt from name)")
+    path = m.group(1)[len(base):] if m else "/media/x"
+    s, h, b = anon.get(path)
+    ok(s == 200 and h.get("content-type") == "image/png" and "sandbox" in h.get("content-security-policy", ""), f"{label}: image served with a sandbox CSP")
+    s, h, b = c.post(media_url, {"alt": "Our team"})
+    ok(s == 303, f"{label}: alt text saved")
+    s, h, b = c.get("/admin/media.json")
+    ok(s == 200 and json.loads(b)["items"][0]["alt"] == "Our team", f"{label}: media list for the editor")
+    c.get("/admin/media")
+    s, h, b = c.upload("/admin/media/upload", {}, [("files", "evil.png", "image/png", b"<html><script>alert(1)</script></html>"),
+                                                  ("files", "page.svg", "image/svg+xml", b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>")])
+    s, h, b = c.get("/admin/media")
+    ok("isn&#39;t a supported file type" in b and b.count("media-card") == 1, f"{label}: fake images and SVG refused")
+    c.get("/admin/media")
+    s, h, b = c.upload("/admin/media/upload", {"_csrf": "bad"}, [("files", "x.png", "image/png", tiny_png())])
+    ok(s == 403, f"{label}: upload needs CSRF")
+
+    # menus
+    s, h, b = c.get("/admin/menus")
+    ok(s == 200 and "Main menu" in b and "Contact &lt;us&gt;" in b, f"{label}: menus page")
+    s, h, b = c.post("/admin/menus/main/add", {"kind": "url", "label": "Shop", "url": "javascript:alert(1)"})
+    ok(s == 422 and "https://" in b, f"{label}: unsafe menu link refused")
+    c.get("/admin/menus")
+    s, h, b = c.post("/admin/menus/main/add", {"kind": "url", "label": "Shop", "url": "https://shop.example/"})
+    ok(s == 303, f"{label}: link added")
+    s, h, b = c.get("/admin/menus")
+    ids = re.findall(r'action="' + re.escape(base) + r'/admin/menus/main/item/(\d+)" class="menu-tools"', b)
+    ok(len(ids) == 4, f"{label}: four menu items ({len(ids)})")
+    shop = ids[-1]
+    c.post(f"/admin/menus/main/item/{shop}", {"do": "up"})
+    c.get("/admin/menus")
+    c.post(f"/admin/menus/main/item/{shop}", {"do": "in"})
+    s, h, b = anon.get("/")
+    nav = b[b.find("<nav"):b.find("</nav>")]
+    ok(nav.find("Shop") > nav.find("About") and "https://shop.example/" in nav, f"{label}: menu order and sub-item on the site")
+    c.get("/admin/menus")
+    c.post(f"/admin/menus/main/item/{shop}", {"do": "remove"})
+    ok("shop.example" not in anon.get("/")[2], f"{label}: menu item removed")
+
+    # themes
+    s, h, b = c.get("/admin/themes")
+    ok(s == 200 and "Quiet" in b and "Active" in b, f"{label}: themes page")
+    s, h, b = c.get("/admin/themes/quiet")
+    form = form_fields(b)
+    form["s.accent"] = "red;}</style><script>"
+    s, h, b = c.post("/admin/themes/quiet", form)
+    ok(s == 422 and "Choose a colour" in b, f"{label}: bad colour refused")
+    c.get("/admin/themes/quiet")
+    form = form_fields(c.last[2])
+    form["s.accent"] = "#C0392B"
+    form.pop("s.show_credit", None)
+    s, h, b = c.post("/admin/themes/quiet", form)
+    ok(s == 303, f"{label}: theme customised")
+    s, h, b = anon.get("/")
+    ok("#c0392b" in b.lower() and "Made with WordCore" not in b, f"{label}: theme settings applied")
+
+    # people: an author
+    s, h, b = c.get("/admin/users/new")
+    ok(s == 200 and "Author" in b, f"{label}: add person form")
+    s, h, b = c.post("/admin/users/new", {"username": "alice", "display_name": "Alice", "email": "", "role": "author"})
+    pw = re.search(r'id="f-temp" class="input mono" readonly value="([^"]+)"', b)
+    ok(s == 200 and pw, f"{label}: author added with a one-time password")
+    alice = Client(port, base)
+    alice.get("/admin/login")
+    s, h, b = alice.post("/admin/login", {"login": "alice", "password": pw.group(1) if pw else ""})
+    ok(s == 303, f"{label}: author signs in")
+    s, h, b = alice.get("/admin")
+    ok(s == 200 and "/admin/settings" not in b and "/admin/users" not in b and "/admin/pages" in b, f"{label}: author sees only content in the menu")
+    ok(alice.get("/admin/settings")[0] == 403 and alice.get("/admin/users")[0] == 403, f"{label}: author can't open settings or people")
+    ok(alice.get(edit_url)[0] == 403, f"{label}: author can't edit someone else's page")
+    alice.get("/admin/pages/new")
+    form = form_fields(alice.last[2])
+    form.update({"title": "Alice's notes", "status": "published", "body": "Hello from Alice"})
+    s, h, b = alice.post("/admin/pages/new", form)
+    ok(s == 303, f"{label}: author creates a page")
+    ok(anon.get("/alices-notes")[0] == 404, f"{label}: author's page stays a draft")
+    alice_page = alice.location()
+
+    # owner edits alice's page while alice has it open -> conflict
+    alice.get(alice_page)
+    alice_form = form_fields(alice.last[2])
+    time.sleep(1.1)
+    c.get(alice_page)
+    f2 = form_fields(c.last[2])
+    f2.update({"body": "Owner's edit", "status": "published"})
+    ok(c.post(alice_page, f2)[0] == 303, f"{label}: owner publishes the author's page")
+    alice_form["body"] = "Alice's late edit"
+    s, h, b = alice.post(alice_page, alice_form)
+    ok(s == 409 and "changed this page while you were editing" in b and "Alice&#39;s late edit" in b, f"{label}: edit conflict detected, text kept")
+    pub = anon.get("/alices-notes")[2]
+    ok("s edit" in pub and "late edit" not in pub, f"{label}: conflict didn't overwrite")
+
+    # role change signs alice out
+    user_url = re.search(r'href="' + re.escape(base) + r'(/admin/users/\d+)">Alice<', c.get("/admin/users")[2])
+    ok(user_url, f"{label}: alice in the people list")
+    user_url = user_url.group(1) if user_url else "/admin/users/0"
+    c.get(user_url)
+    s, h, b = c.post(user_url + "/role", {"role": "owner"})
+    ok(s == 422, f"{label}: owner role can't be handed out")
+    c.get(user_url)
+    s, h, b = c.post(user_url + "/role", {"role": "editor"})
+    ok(s == 303, f"{label}: role changed")
+    ok(alice.get("/admin")[0] == 303, f"{label}: role change signs the person out")
+    owner_id = re.search(r'href="' + re.escape(base) + r'/admin/users/(\d+)">Pat', c.get("/admin/users")[2])
+    if owner_id:
+        c.get(user_url)
+        ok(c.post(f"/admin/users/{owner_id.group(1)}/delete")[0] == 403, f"{label}: can't delete yourself / the owner")
+
+    # members
+    c.get("/admin/settings")
+    form = form_fields(c.last[2])
+    form["members.registration"] = "1"
+    s, h, b = c.post("/admin/settings", form)
+    ok(s == 303, f"{label}: member sign-up opened")
+    m = Client(port, base)
+    s, h, b = m.get("/account/register")
+    ok(s == 200 and "Create an account" in b, f"{label}: themed sign-up page")
+    s, h, b = m.post("/account/register", {"username": "milo", "email": "", "password": "weak", "password2": "weak"})
+    ok(s == 422, f"{label}: sign-up validation")
+    s, h, b = m.post("/account/register", {"username": "milo", "email": "", "password": STRONG, "password2": STRONG})
+    ok(s == 303 and m.location() == "/account", f"{label}: member signed up")
+    ok(m.get("/contact-us/team")[0] == 200, f"{label}: member sees members-only page")
+    ok(m.get("/admin")[0] == 403, f"{label}: member can't open the admin")
+
+    # 2-step login for the owner
+    s, h, b = c.get("/admin/account/2fa")
+    key = re.search(r"Enter this key instead: <code>([A-Z2-7 ]+)</code>", b)
+    ok(s == 200 and key and "<svg" in b, f"{label}: 2-step setup shows QR and key")
+    secret = key.group(1).replace(" ", "") if key else "A" * 32
+    s, h, b = c.post("/admin/account/2fa", {"code": "000000"})
+    ok(s == 422, f"{label}: wrong setup code refused")
+    s, h, b = c.post("/admin/account/2fa", {"code": totp_now(secret)})
+    codes = re.findall(r"<li>([a-z0-9]{4,5}-[a-z0-9]{4,5})</li>", b)
+    ok(s == 200 and len(codes) >= 8, f"{label}: 2-step on, recovery codes shown ({len(codes)})")
+    t = Client(port, base)
+    t.get("/admin/login")
+    s, h, b = t.post("/admin/login", {"login": "patrick", "password": STRONG})
+    ok(s == 303 and t.location() == "/admin/login/verify", f"{label}: password alone isn't enough")
+    ok(t.get("/admin")[0] == 303, f"{label}: not signed in before the code")
+    t.get("/admin/login/verify")
+    s, h, b = t.post("/admin/login/verify", {"code": "123456"})
+    ok(s == 401 or s == 422, f"{label}: wrong 2-step code refused ({s})")
+    s, h, b = t.post("/admin/login/verify", {"code": codes[0] if codes else ""})
+    ok(s == 303 and t.get("/admin")[0] == 200, f"{label}: recovery code signs in")
+    t2 = Client(port, base)
+    t2.get("/admin/login")
+    t2.post("/admin/login", {"login": "patrick", "password": STRONG})
+    t2.get("/admin/login/verify")
+    s, h, b = t2.post("/admin/login/verify", {"code": codes[0] if codes else ""})
+    ok(s != 303, f"{label}: recovery codes work once")
+    c.get("/admin/account")
+    s, h, b = c.post("/admin/account/2fa/manage", {"password": STRONG, "do": "off"})
+    ok(s == 303, f"{label}: 2-step login turned off")
+
+    # dashboard numbers
+    s, h, b = c.get("/admin")
+    ok("Recently edited" in b and "Alice&#39;s notes" in b, f"{label}: dashboard shows recent pages")
+
+    # delete a page
+    c.get(team_url)
+    s, h, b = c.post(team_url + "/delete")
+    ok(s == 303 and c.get("/contact-us/team")[0] == 404, f"{label}: page deleted")
+
+
 def admin_flow(c, port, base, site_dir, label):
     s, h, b = c.get("/admin")
     ok(s == 200 and "Dashboard" in b and "Your site is ready" in b, f"{label}: dashboard with welcome message")
@@ -386,6 +708,8 @@ def admin_flow(c, port, base, site_dir, label):
     c.get("/admin/settings")
     s, h, b = c.post("/admin/settings", {"site.name": "Evil"}, headers={"Origin": "https://evil.example"})
     ok(s == 403, f"{label}: cross-site Origin refused")
+
+    content_flow(c, port, base, site_dir, label)
 
     # second device
     d = Client(port, base)

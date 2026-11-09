@@ -1,0 +1,9 @@
+<article class="page wrap">
+  <header class="page-header">
+    <h1>Page not found</h1>
+  </header>
+  <div class="prose">
+    <p>There's nothing at this address. It may have moved, or the link may be mistyped.</p>
+    <p><a class="wc-button" href="<%= site.url %>">Go to the home page</a></p>
+  </div>
+</article>

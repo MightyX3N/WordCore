@@ -32,7 +32,10 @@ local function core_searcher(name)
   if not src then
     return "\n\tno core module '" .. file .. "'"
   end
-  local chunk, err = load(src, "@core/" .. file, "t")
+  -- The embedded core is precompiled bytecode (built by runtime/build); a core
+  -- folder on disk (WORDCORE_CORE_DIR, development) is plain source. Bytecode is
+  -- only ever accepted here, never for addons.
+  local chunk, err = load(src, "@core/" .. file, src:sub(1, 4) == "\27Lua" and "b" or "t")
   if not chunk then error(err, 0) end
   return chunk, file
 end

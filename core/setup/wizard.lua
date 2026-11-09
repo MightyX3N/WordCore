@@ -317,6 +317,7 @@ local function post_finish(req)
     if err == "already set up" then return http.new_response():redirect(req:url_for("/admin/login")) end
     error(err, 0)
   end
+  require("wc.content.starter").apply(db, s.starter, s.site.name, user.id)
   code.remove(req.site)
   db:run("UPDATE wc_users SET last_login_at = unixepoch() WHERE id = ?", user.id)
   session.login(req, db, users.get(db, user.id))

@@ -28,7 +28,12 @@ local function trim(s) return ((s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 local function valid_https(u) return u:match("^https://[%w%.%-]+[%w]") ~= nil and not u:find("[%s<>\"']") and #u <= 300 end
 
 -- Turn submitted form text into a typed value, or return an error message.
-local function parse(field, raw)
+local function options_of(field, req)
+  if type(field.options) == "function" then return field.options(req) end
+  return field.options
+end
+
+local function parse(field, raw, req)
   local t = field.type or "text"
   if t == "checkbox" then return raw == "1" end
   raw = trim(raw)
@@ -47,7 +52,9 @@ local function parse(field, raw)
   if field.required and raw == "" then return nil, field.required_text or "This can't be empty." end
   if field.max and #raw > field.max then return nil, ("Use at most %d characters."):format(field.max) end
   if t == "select" then
-    for _, o in ipairs(field.options) do if tostring(o[1]) == raw then return raw end end
+    for _, o in ipairs(options_of(field, req)) do
+      if tostring(o[1]) == raw then return field.number and tonumber(raw) or raw end
+    end
     return nil, "Choose an option from the list."
   end
   if t == "url" and raw ~= "" and not valid_https(raw) then return nil, "Enter an https:// address." end
@@ -66,11 +73,11 @@ local function render(req, spec, values, errors)
     for _, f in ipairs(sec.fields) do
       fields[#fields + 1] = {
         name = f.key, label = f.label, hint = f.hint, required = f.required, max = f.max, mono = f.mono or f.type == "url_list",
-        type = f.type == "url_list" and "textarea" or f.type, options = f.options, rows = f.rows,
+        type = f.type == "url_list" and "textarea" or f.type, options = options_of(f, req), rows = f.rows,
         value = to_form_value(f, values[f.key]), error = errors[f.key], optional = f.optional,
       }
     end
-    sections[#sections + 1] = { title = sec.title, intro = sec.intro, fields = fields }
+    sections[#sections + 1] = { title = sec.title, intro = sec.intro, fields = fields, id = sec.id }
   end
   local body = ui.form({ action = req:url_for(spec.path), csrf = req.session.csrf, sections = sections, submit = spec.submit or "Save changes" })
   local res = page.admin(req, { title = spec.title, subtitle = spec.subtitle, active = spec.id, body = body, narrow = true })
@@ -95,7 +102,12 @@ function settings_page.register(r, spec)
     local form = req:form()
     local values, errors = {}, {}
     for _, f in ipairs(all_fields()) do
-      local v, err = parse(f, form[f.key])
+      local v, err
+      if form[f.key] == nil and f.type ~= "checkbox" then
+        v = settings.get(req.db, f.key)   -- not part of this submit: keep it
+      else
+        v, err = parse(f, form[f.key], req)
+      end
       if err then errors[f.key] = err; values[f.key] = form[f.key] else values[f.key] = v end
     end
     if spec.validate then spec.validate(values, errors, req) end

@@ -10,7 +10,6 @@ local router = require("wc.platform.router")
 local session = require("wc.platform.session")
 local settings = require("wc.platform.settings")
 local assets = require("wc.platform.assets")
-local view = require("wc.platform.view")
 local users = require("wc.people.users")
 
 local app = {}
@@ -27,16 +26,17 @@ local hello = require("wc.app.hello")
 routes:get("/_wc/health", function(req) req.path = "/health" return hello(req, req.app_ctx) end)
 routes:get("/_wc/hostcheck", function(req) req.path = "/" return hello(req, req.app_ctx) end, { auth = "settings.manage" })
 
--- Front page (themes and pages arrive in Phase 2).
-routes:get("/", function(req)
-  local res = http.new_response(200)
-  res:html(view.render("front", {
-    site_name = settings.get(req.db, "site.name"),
-    tagline = settings.get(req.db, "site.tagline"),
-    language = settings.get(req.db, "site.language"),
-  }, req))
-  return res
-end, { name = "home" })
+require("wc.admin.pages").register(routes)
+require("wc.admin.media").register(routes)
+require("wc.admin.menus").register(routes)
+require("wc.admin.themes").register(routes)
+require("wc.admin.users").register(routes)
+
+local front = require("wc.content.front")
+front.register(routes)
+require("wc.people.accounts").register(routes)
+-- The public pages (and the catch-all "/*path") must come last.
+front.register_pages(routes)
 
 app.routes = routes
 
@@ -63,7 +63,7 @@ local function dispatch(req)
   -- First run: nothing but the setup wizard until an owner exists.
   local has_owner = users.has_owner(db)
   local in_setup = req.path == "/setup" or req.path:sub(1, 7) == "/setup/"
-  if not has_owner and not in_setup and req.path ~= "/_wc/health" then
+  if not has_owner and not in_setup and req.path ~= "/_wc/health" and req.path:sub(1, 10) ~= "/_wc/theme" then
     return http.new_response():redirect(req:url_for("/setup"))
   end
   if has_owner and in_setup then
@@ -71,6 +71,13 @@ local function dispatch(req)
   end
 
   local route, params, allowed = routes:match(req.method, req.path)
+  if route and route.opts and route.opts.catch_all then
+    -- "/admin/logout" is POST only: say so instead of showing a page-not-found
+    local other = routes:match("POST", req.path)
+    if other and not (other.opts and other.opts.catch_all) then
+      return http.error_page(405, "That action isn't allowed here."):set_header("Allow", "POST")
+    end
+  end
   if not route then
     if allowed then
       return http.error_page(405, "That action isn't allowed here."):set_header("Allow", table.concat(allowed, ", "))

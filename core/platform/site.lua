@@ -56,12 +56,22 @@ function site:init_core()
   require("wc.platform.session").migrate(self.db)
   require("wc.platform.log").migrate(self.db)
   require("wc.platform.ratelimit").migrate(self.db)
+  require("wc.content.pages").migrate(self.db)
+  require("wc.content.menus").migrate(self.db)
+  require("wc.content.media").migrate(self.db)
   local id = settings.get(self.db, "site.id")
   if not id then
     id = require("wc.lib.crypto").hex(native.random_bytes(8))
     settings.set(self.db, "site.id", id)
   end
   self.id = id
+  -- sites created before pages existed get their starter content once
+  if not settings.get(self.db, "content.seeded", false) then
+    local owner = self.db:first("SELECT id FROM wc_users WHERE role = 'owner' ORDER BY id LIMIT 1")
+    if owner then
+      require("wc.content.starter").apply(self.db, settings.get(self.db, "site.starter"), settings.get(self.db, "site.name"), owner.id)
+    end
+  end
 end
 
 function site:close()

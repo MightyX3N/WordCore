@@ -1,12 +1,12 @@
--- WordCore — sign in and sign out.
+-- WordCore — admin sign in (with 2-step login) and sign out.
 -- Copyright (C) 2026 WordCore contributors. GPLv3 + WordCore Addon and Theme Exception.
 
 local http = require("wc.platform.http")
 local session = require("wc.platform.session")
-local ratelimit = require("wc.platform.ratelimit")
 local settings = require("wc.platform.settings")
 local log = require("wc.platform.log")
 local users = require("wc.people.users")
+local login = require("wc.people.login")
 local html = require("wc.lib.html")
 local ui = require("wc.admin.ui")
 local page = require("wc.admin.page")
@@ -14,18 +14,10 @@ local page = require("wc.admin.page")
 local esc = html.escape
 local auth = {}
 
-auth.IP_LIMIT, auth.IP_WINDOW = 20, 900       -- per address: 20 tries per 15 minutes
-auth.USER_LIMIT, auth.USER_WINDOW = 8, 900    -- per account: 8 tries per 15 minutes
-
--- Only allow redirects to paths inside this site (no open redirects).
-function auth.safe_next(n)
-  if type(n) ~= "string" or n == "" then return nil end
-  if n:sub(1, 1) ~= "/" or n:sub(1, 2) == "//" or n:find("[\\%c]") or n:find("^/[^/]*:") then return nil end
-  return n
-end
+auth.safe_next = login.safe_next
 
 local function login_page(req, err, login_value, status)
-  local nxt = auth.safe_next(req.query.next or req:form().next)
+  local nxt = login.safe_next(req.query.next or req:form().next)
   local body = ('<div><h1>Sign in</h1><p class="intro">to %s</p></div>'):format(esc(settings.get(req.db, "site.name")))
     .. ('<form method="post" action="%s" class="form" novalidate>'):format(esc(req:url_for("/admin/login")))
     .. ui.csrf(req.session.csrf)
@@ -42,50 +34,53 @@ local function login_page(req, err, login_value, status)
   return res
 end
 
+local function code_page(req, err, status)
+  local body = '<div><h1>2-step login</h1><p class="intro">Enter the 6-digit code from your authenticator app. Lost your phone? Use one of your recovery codes.</p></div>'
+    .. ('<form method="post" action="%s" class="form" novalidate>'):format(esc(req:url_for("/admin/login/verify")))
+    .. ui.csrf(req.session.csrf)
+    .. (err and ('<div class="flash bad" role="alert">%s</div>'):format(esc(err)) or "")
+    .. ui.field({ name = "code", label = "Code", required = true, autocomplete = "one-time-code", autofocus = true, inputmode = "numeric", class = "code-input", spellcheck = "false" })
+    .. '<button type="submit" class="btn btn-primary btn-lg btn-block">Verify</button></form>'
+    .. ('<p class="small muted"><a href="%s">Start over</a></p>'):format(esc(req:url_for("/admin/login")))
+  local res = page.auth(req, { title = "2-step login", body = body, small = true,
+    side_kicker = settings.get(req.db, "site.name"), side_lead = "One more step." })
+  if status then res.status = status end
+  return res
+end
+
 local function get_login(req)
   if req.user and users.can(req.user, "admin.access") then
-    return http.new_response():redirect(req:url_for(auth.safe_next(req.query.next) or "/admin"))
+    return http.new_response():redirect(req:url_for(login.safe_next(req.query.next) or "/admin"))
   end
   session.ensure(req, req.db)
   return login_page(req)
 end
 
-local function minutes(s) return math.max(1, math.ceil(s / 60)) end
-
 local function post_login(req)
   local f = req:form()
-  local login = (f.login or ""):gsub("^%s+", ""):gsub("%s+$", "")
-  local ip_key = "login:ip:" .. (req.client_ip or "?")
-  local user_key = "login:user:" .. login:lower()
+  local result, err, status = login.attempt(req, f.login, f.password, f.next, "admin")
+  if result == "2fa" then return http.new_response():redirect(req:url_for("/admin/login/verify")) end
+  if not result then return login_page(req, err, (f.login or ""):sub(1, 254), status) end
+  return http.new_response():redirect(req:url_for(login.safe_next(f.next) or "/admin"))
+end
 
-  local blocked, retry = ratelimit.blocked(req.db, user_key, auth.USER_LIMIT)
-  if blocked then
-    return login_page(req, ("Too many failed attempts for this account. Try again in %d minutes."):format(minutes(retry)), login, 429)
-  end
-  local ok_ip, retry_ip = ratelimit.hit(req.db, ip_key, auth.IP_LIMIT, auth.IP_WINDOW)
-  if not ok_ip then
-    return login_page(req, ("Too many sign-in attempts from your network. Try again in %d minutes."):format(minutes(retry_ip)), login, 429)
-  end
+local function get_verify(req)
+  if not login.pending(req) then return http.new_response():redirect(req:url_for("/admin/login")) end
+  return code_page(req)
+end
 
-  local user = users.authenticate(req.db, login, f.password)
-  if not user then
-    ratelimit.hit(req.db, user_key, auth.USER_LIMIT, auth.USER_WINDOW)
-    log.add(req.db, req, "login.failed", login ~= "" and ("for " .. login:sub(1, 64)) or nil)
-    return login_page(req, "Wrong username or password.", login, 401)
+local function post_verify(req)
+  local result, nxt_or_err, status = login.verify(req, req:form().code)
+  if result == "ok" then return http.new_response():redirect(req:url_for(nxt_or_err or "/admin")) end
+  if status == 410 then
+    session.flash(req, "bad", nxt_or_err)
+    return http.new_response():redirect(req:url_for("/admin/login"))
   end
-  if not users.can(user, "admin.access") then
-    log.add(req.db, req, "login.denied", "no admin access: " .. user.username)
-    return login_page(req, "This account can't use the admin.", login, 403)
-  end
-
-  ratelimit.clear(req.db, user_key)
-  session.login(req, req.db, user)
-  log.add(req.db, req, "login", "signed in")
-  return http.new_response():redirect(req:url_for(auth.safe_next(f.next) or "/admin"))
+  return code_page(req, nxt_or_err, status)
 end
 
 local function post_logout(req)
-  if req.user then log.add(req.db, req, "logout", "signed out") end
+  if req.user then log.add(req.db, req, "logout", nil) end
   session.destroy(req, req.db)
   return http.new_response():redirect(req:url_for("/admin/login"))
 end
@@ -93,6 +88,8 @@ end
 function auth.register(r)
   r:get("/admin/login", get_login, { name = "login" })
   r:post("/admin/login", post_login)
+  r:get("/admin/login/verify", get_verify)
+  r:post("/admin/login/verify", post_verify)
   r:post("/admin/logout", post_logout)
 end
 

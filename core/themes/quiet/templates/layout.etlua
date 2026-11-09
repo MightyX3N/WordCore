@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="<%= site.language %>">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><% if title and title ~= "" and title ~= site.name then %><%= title %> · <% end %><%= site.name %></title>
+<% if description and description ~= "" then %><meta name="description" content="<%= description %>"><% end %>
+<% if noindex then %><meta name="robots" content="noindex"><% end %>
+<link rel="stylesheet" href="<%= asset('assets/style.css') %>">
+<style>
+<% if theme.font == "sans" then %>
+@font-face { font-family: "Inter"; font-style: normal; font-display: swap; font-weight: 100 900; src: url(<%= core_asset('fonts/inter-latin-wght-normal.woff2') %>) format("woff2-variations"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Inter"; font-style: normal; font-display: swap; font-weight: 100 900; src: url(<%= core_asset('fonts/inter-latin-ext-wght-normal.woff2') %>) format("woff2-variations"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+<% end %>
+:root { --accent: <%= theme.accent %>; }
+</style>
+<%- head_extra %>
+</head>
+<body class="<%= body_class %> font-<%= theme.font %> width-<%= theme.width %><% if edit_url then %> has-edit-link<% end %>">
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="site-title" href="<%= site.url %>"><%= site.name %></a>
+    <% if #menus.main > 0 then %>
+    <nav class="main-nav" aria-label="Main">
+      <ul class="menu">
+        <% for _, item in ipairs(menus.main) do %>
+        <li class="<%= #item.children > 0 and 'has-children' or '' %>">
+          <a href="<%= item.url %>"<% if item.current then %> aria-current="page"<% elseif item.current_parent then %> class="current-parent"<% end %>><%= item.label %></a>
+          <% if #item.children > 0 then %>
+          <ul class="submenu">
+            <% for _, child in ipairs(item.children) do %>
+            <li><a href="<%= child.url %>"<% if child.current then %> aria-current="page"<% end %>><%= child.label %></a></li>
+            <% end %>
+          </ul>
+          <% end %>
+        </li>
+        <% end %>
+      </ul>
+    </nav>
+    <% end %>
+  </div>
+</header>
+<% if preview_notice then %>
+<div class="preview-notice" role="status"><div class="wrap"><%= preview_notice %></div></div>
+<% end %>
+<main id="content" class="site-main">
+  <%- content %>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <% if #menus.footer > 0 then %>
+    <nav aria-label="Footer">
+      <ul class="footer-menu">
+        <% for _, item in ipairs(menus.footer) do %><li><a href="<%= item.url %>"><%= item.label %></a></li><% end %>
+      </ul>
+    </nav>
+    <% end %>
+    <p class="footer-meta">
+      © <%= year %> <%= site.name %><% if theme.show_tagline and site.tagline ~= "" then %> · <%= site.tagline %><% end %>
+      <% if theme.show_credit then %><span class="credit"> · Made with <a href="https://wordcore.space">WordCore</a></span><% end %>
+    </p>
+  </div>
+</footer>
+<% if edit_url then %><a class="edit-link" href="<%= edit_url %>">Edit page</a><% end %>
+</body>
+</html>

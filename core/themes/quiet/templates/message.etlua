@@ -1,0 +1,8 @@
+<article class="page wrap narrow">
+  <header class="page-header">
+    <h1><%= title %></h1>
+  </header>
+  <div class="prose">
+    <%- body %>
+  </div>
+</article>

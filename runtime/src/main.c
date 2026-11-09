@@ -80,7 +80,7 @@ static int load_boot(lua_State *L) {
     lua_pushliteral(L, "core/boot.lua is not embedded in this build");
     return LUA_ERRFILE;
   }
-  return luaL_loadbufferx(L, (const char *)f->data, (size_t)f->size, "@core/boot.lua", "t");
+  return luaL_loadbufferx(L, (const char *)f->data, (size_t)f->size, "@core/boot.lua", "b");
 }
 
 int main(int argc, char **argv) {
@@ -99,6 +99,7 @@ int main(int argc, char **argv) {
   preload(L, "wc.sqlite", luaopen_wc_sqlite);
   preload(L, "wc.embedded", luaopen_wc_embedded);
   preload(L, "wc.crypto", luaopen_wc_crypto);
+  preload(L, "wc.markdown", luaopen_wc_markdown);
 
   lua_pushstring(L, WC_VERSION);
   lua_setglobal(L, "WORDCORE_VERSION");

@@ -120,7 +120,7 @@ function ui.form(spec)
     spec.confirm and (' data-confirm="' .. esc(spec.confirm) .. '"') or ""), ui.csrf(spec.csrf) }
   if spec.sections then
     for _, sec in ipairs(spec.sections) do
-      out[#out + 1] = '<section class="card">'
+      out[#out + 1] = sec.id and ('<section class="card" id="' .. esc(sec.id) .. '">') or '<section class="card">'
       if sec.title then
         out[#out + 1] = ('<div class="card-head"><h2>%s</h2>%s</div>'):format(esc(sec.title),
           sec.badge and ('<span class="badge">' .. esc(sec.badge) .. "</span>") or "")

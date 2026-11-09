@@ -32,7 +32,7 @@
     </div>
   </nav>
   <main class="work" id="main">
-    <div class="container<% if narrow then %> narrow<% end %>">
+    <div class="container<% if narrow then %> narrow<% end %><% if wide then %> wide<% end %>">
       <%- flash_html %>
       <header class="page-head">
         <div>

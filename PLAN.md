@@ -312,10 +312,14 @@ Each phase ends with its tests passing and a click-through as a real user.
 - ✅ Strict CSP on all admin pages; fonts bundled (no outside requests)
 - ✅ Tested: unit tests, full product flow over HTTP in server mode, through Apache CGI (subfolder + web root), on Windows (Wine), ARM (qemu), and a Playwright click-through with light/dark/phone checks
 
-**Phase 2 — Content & themes**
-- Pages, menus, media library, Markdown, shortcodes, editor slot + Markdown editor
-- Theme system + new Default theme
-- Users, roles, front-end accounts, 2-step login
+**Phase 2 — Content & themes** ✅
+- ✅ Pages (nested, drafts, scheduling, members-only, layouts, 50 saved versions with restore, edit-conflict warning), menus (main + footer, one sub-level), media library (type checked by content, sandboxed serving)
+- ✅ Markdown via cmark-gfm 0.29.0.gfm.13 (tables, task lists, footnotes, strikethrough, autolinks; raw HTML and `javascript:` links removed), shortcodes with a registry and a visible "missing shortcode" note in the editor
+- ✅ Editor slot + the core Markdown editor (toolbar, shortcuts, live preview, split/write/preview, media picker, shortcode menu, unsaved-changes warning)
+- ✅ Theme system (one package, sandboxed templates, theme settings) + the built-in theme **Quiet**
+- ✅ People: roles (owner, administrator, editor, author, member), add people with a one-time password, role changes, resets; member accounts on the site with optional sign-up; 2-step login (authenticator app + recovery codes) for staff and members
+- ✅ The embedded core is precompiled to Lua bytecode at build time: a CGI request went from ~18 ms to ~5 ms
+- ✅ Tested: unit tests, the whole content flow over HTTP (server, Apache subfolder + web root, Windows under Wine), ARM under qemu, and a Playwright click-through with screenshots
 
 **Phase 3 — Addon system**
 - Sandbox, permissions, manifest, install/update/remove, repo client
