@@ -277,9 +277,12 @@ GitHub Pages serves one site per repo, so the website and the addon repo share i
 Each phase ends with its tests passing and a click-through as a real user.
 
 **Phase 0 — Toolchain & proof**
-- Build the static program for all targets; "hello world" page in server mode and CGI mode
-- Test CGI on a real cPanel host (CloudLinux, caged SSH, non-standard SSH/SFTP port). Use a test subdomain/subfolder so live sites aren't touched. Check: program runs via `.htaccess`, time per request, CloudLinux limits, cPanel API token upload, SFTP upload.
-- Test through a playit tunnel with a domain
+- ✅ Build the static program for all targets (Lua 5.5.1 + SQLite 3.53.4, ~2 MB each, cross-compiled with Zig)
+- ✅ "Host check" page in server mode and CGI mode; server mode is non-blocking with keep-alive
+- ✅ Tested: unit tests, built-in server, CGI, CGI through Apache + `.htaccess` (subfolder and web root, cPanel-like config, ~3 ms/request), Windows build under Wine, ARM build under qemu
+- ✅ Downloads: `wordcore-<version>-host-test.zip` for shared hosting, one zip per platform for running locally
+- ⬜ Test CGI on a real cPanel host (CloudLinux, caged SSH, non-standard SSH/SFTP port). Use a test subdomain/subfolder so live sites aren't touched. Check: program runs via `.htaccess`, time per request, CloudLinux limits, cPanel API token upload, SFTP upload.
+- ⬜ Test through a playit tunnel with a domain (`wordcore serve --trust-proxy`)
 
 **Phase 1 — Core platform**
 - HTTP (server + CGI), router, address/proxy handling, SQLite + migrations, sessions, CSRF, rate limiting

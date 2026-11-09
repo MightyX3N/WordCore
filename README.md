@@ -2,7 +2,7 @@
 
 A small, fast CMS written in Lua. One program that runs on your PC, on cPanel hosting, on a VPS, or exports a static site for GitHub Pages.
 
-> **Status:** planning. No code yet. Start with [PLAN.md](PLAN.md).
+> **Status:** Phase 0 — the program builds for every platform and runs a host-check page in server and CGI mode. Start with [PLAN.md](PLAN.md); build instructions are in [runtime/](runtime/).
 
 ## The idea
 

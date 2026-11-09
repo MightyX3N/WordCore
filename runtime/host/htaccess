@@ -1,0 +1,20 @@
+# WordCore — send every request to the WordCore program (CGI mode).
+# Works in the web root or in a subfolder. Nothing here needs editing.
+
+Options -Indexes +ExecCGI
+DirectoryIndex wordcore.cgi
+AddHandler cgi-script .cgi
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Pass the Authorization header through to the program.
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  # The program itself and the public/ asset folder are served as-is.
+  RewriteRule ^wordcore\.cgi$ - [L]
+  RewriteCond %{REQUEST_URI} !/public/
+  RewriteRule ^ wordcore.cgi [L,QSA]
+</IfModule>
+
+# The site/ folder has its own .htaccess that blocks all access to it.
