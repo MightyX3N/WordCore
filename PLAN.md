@@ -130,7 +130,7 @@ Saved host logins are **not** in this folder. They live encrypted in the user's 
 - Install from repo, from `.zip`, or a folder
 - Dependencies, minimum core version, update checks (core + addons + themes)
 - Permission review screen on install (what it can / can't do)
-- Repos: official one recommended in setup, extra repos allowed but marked unofficial
+- Repos: official one (`https://wordcore.space/repo/`) recommended in setup, extra repos allowed but marked unofficial
 - The old Updater addon is gone — updates are core
 
 ### Publish & share (core)
@@ -223,16 +223,20 @@ WordCore/
 └── design/          # admin design previews and notes
 ```
 
-**Should the addon repo be its own branch? Yes — as a build-output branch.**
+**Decided: one GitHub Pages site from a build-output branch.**
+
+GitHub Pages serves one site per repo, so the website and the addon repo share it:
+
+| Address | What |
+|---|---|
+| `https://wordcore.space/` | The WordCore website (and later the docs) |
+| `https://wordcore.space/repo/` | The official addon & theme repository (`index.json` + zips) — the default repo URL in setup |
 
 - Official addon **source** lives on `main` in `addons/` and `themes/`, next to the core, so changes to the API and the addons that use it land together and are tested together.
-- A release script builds each addon into a zip, computes checksums, signs (if we do signing), and writes `index.json` into an orphan branch **`repo`** that contains only built output. GitHub Pages serves that branch.
+- A release script builds the website, zips each addon and theme, computes checksums, signs (if we do signing), and writes everything into an orphan branch **`pages`** that contains only built output (website at the root, repository under `/repo/`, plus `CNAME` = `wordcore.space`). GitHub Pages serves that branch.
 - Community addons stay in their authors' repos. They get listed by a PR to `registry/` on `main`; the build pulls their release zip, checks it, and includes it in the index.
-- Benefits: `main` history stays free of zip files, the repo branch is always reproducible from source, and there's one place to contribute.
-
-**Catch:** GitHub Pages serves **one site per repo**. So if the WordCore website (`wordcore.space`) is also hosted from this repo, the addon index can't be a separate Pages site on `repo.wordcore.space` from the same repo. Options **(open)**:
-1. One Pages site from a `pages` build branch: website at `wordcore.space`, addon repo at `wordcore.space/repo/`. Simplest.
-2. Website from this repo, addon index from a small separate repo (e.g. `MightyX3N/WordCore-Repo`) at `repo.wordcore.space`, still built by this repo's release script.
+- Benefits: `main` history stays free of zip files, the `pages` branch is always reproducible from source, and there's one place to contribute.
+- `repo.wordcore.space` isn't needed anymore.
 
 ### Repo index format (v2, draft)
 
@@ -283,7 +287,7 @@ Each phase ends with its tests passing and a click-through as a real user.
 
 **Phase 3 — Addon system**
 - Sandbox, permissions, manifest, install/update/remove, repo client
-- Release script → `repo` branch + `index.json`
+- Release script → `pages` branch (website + `/repo/index.json`)
 - First small addons to prove the API: SEO, Snippets, Favicons
 
 **Phase 4 — Publish & share**
@@ -320,9 +324,8 @@ Each phase ends with its tests passing and a click-through as a real user.
 
 1. Lua 5.4 or LuaJIT?
 2. A cPanel host to test CGI against?
-3. Which domain is pointed at GitHub — `wordcore.space`, `repo.wordcore.space`, or both? (Decides option 1 or 2 in §9.)
-4. Sign official addons (Ed25519) or checksums only?
-5. Keep the MIT licence?
+3. Sign official addons (Ed25519) or checksums only?
+4. Keep the MIT licence?
 
 ---
 

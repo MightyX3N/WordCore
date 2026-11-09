@@ -1,6 +1,6 @@
 # addons/
 
-Official addon source. Each folder is one addon with an `addon.json` manifest. Release builds turn them into zips on the `repo` branch. See [PLAN.md §7–8](../PLAN.md#7-the-addon-sandbox).
+Official addon source. Each folder is one addon with an `addon.json` manifest. Release builds turn them into zips on the `pages` branch, served at `wordcore.space/repo/`. See [PLAN.md §7–8](../PLAN.md#7-the-addon-sandbox).
 
 ## Planned addons
 
