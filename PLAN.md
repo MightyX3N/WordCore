@@ -48,7 +48,7 @@ One program, `wordcore` (`wordcore.exe` on Windows): a static Lua runtime with t
 
 ### Built into the program (native, C)
 
-- Lua runtime **(open: Lua 5.4 vs LuaJIT)** — leaning 5.4: `_ENV` makes sandboxing clean, simpler to cross-compile, plenty fast for a CMS. LuaJIT is faster and matches GMod's Lua 5.1, but sandboxing and ARM/macOS builds are fiddlier.
+- Lua runtime: **Lua 5.5** (decided). Newest official Lua (5.5.0 Dec 2025, 5.5.1 since): `global` declarations catch typos in core and addon code, incremental major GC and compact arrays cut memory, and `_ENV` keeps sandboxing clean. Plain C, so it cross-compiles easily. LuaJIT was the alternative (faster, GMod-style Lua 5.1) but is harder to sandbox and build for ARM/macOS, and speed isn't the bottleneck for a CMS.
 - SQLite (database)
 - zlib + zip (install addons, build packages)
 - Crypto: Argon2id password hashing, secure random, SHA-256, Ed25519 (signatures), encryption for saved logins
@@ -322,10 +322,9 @@ Each phase ends with its tests passing and a click-through as a real user.
 
 ## 12. Open questions
 
-1. Lua 5.4 or LuaJIT?
-2. A cPanel host to test CGI against?
-3. Sign official addons (Ed25519) or checksums only?
-4. Keep the MIT licence?
+1. A cPanel host to test CGI against?
+2. Sign official addons (Ed25519) or checksums only?
+3. Licence: GPLv3 with an addon/theme exception, plain GPLv3, or MIT?
 
 ---
 

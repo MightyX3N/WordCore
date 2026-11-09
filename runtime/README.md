@@ -6,7 +6,7 @@ See [PLAN.md §3](../PLAN.md#3-how-it-runs).
 
 ## Built in
 
-- Lua (5.4 or LuaJIT — open question)
+- Lua 5.5
 - SQLite
 - zlib + zip
 - Crypto: Argon2id, secure random, SHA-256, Ed25519, encryption for saved logins
